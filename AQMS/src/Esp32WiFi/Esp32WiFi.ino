@@ -26,8 +26,8 @@
    Authors:
    Initials Full name             Comment
    FH       Mr Fred Houweling
-   ZB       Zachary Bates         Water flow
-   MV       Matthew Vella         Water folw, PH, trubidity.
+   ZB       Zach B             Water flow
+   MV       Mat V             Water folw, PH, trubidity.
    
 
    Sample serial log:
