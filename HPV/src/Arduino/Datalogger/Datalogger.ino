@@ -1,22 +1,3 @@
-#include <Time.h>
-#include <TimeLib.h>
-
-#include <WiFiEsp.h>
-#include <WiFiEspClient.h>
-#include <WiFiEspServer.h>
-#include <WiFiEspUdp.h>
-
-#include <Wire.h>
-
-#include <SD.h>
-#include <sd_defines.h>
-#include <sd_diskio.h>
-#include <OneWire.h>
-#include <LiquidCrystal_PCF8574.h>
-#include <DallasTemperature.h>
-#include <ArduinoJson.h>
-#include <DHT.h>
-
 /* 
    PSHS Human Powered Vehicle
    Version: 1.0
@@ -71,6 +52,24 @@ Serial1   -| TX/17       SCL/22 |-  I^2C Clock
 *2 BAT – LiPo Battery
 *3 Low signals 3.3V Reg Shutdown
 */
+#include <Time.h>
+#include <TimeLib.h>
+
+#include <WiFiEsp.h>
+#include <WiFiEspClient.h>
+#include <WiFiEspServer.h>
+#include <WiFiEspUdp.h>
+
+#include <Wire.h>
+
+#include <SD.h>
+#include <sd_defines.h>
+#include <sd_diskio.h>
+#include <OneWire.h>
+#include <LiquidCrystal_PCF8574.h>
+#include <DallasTemperature.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
 
 void setup()
 {
