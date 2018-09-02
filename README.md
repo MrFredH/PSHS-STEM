@@ -13,6 +13,8 @@ If you are developing using the ESP32 or ESP8266 WiFi enabled micro...
 As per instructions from: https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/
 add 2 Additional board manager URL's into the file->preferences menu.
 
+https://dl.espressif.com/dl/package_esp32_index.json,http://arduino.esp8266.com/stable/package_esp8266com_index.json
+
 In Tools->Boards->Boards manager menu, search for and install the ESP modules you are going to use.
 
 ### Install critical Arduino libraries.
