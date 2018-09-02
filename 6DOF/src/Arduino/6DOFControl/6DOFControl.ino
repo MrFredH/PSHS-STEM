@@ -1,4 +1,4 @@
-#include <VarSpeedServo.h>
+//#include <VarSpeedServo.h>
 
 /* Servo control for AL5D arm */
 
