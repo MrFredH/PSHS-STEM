@@ -76,21 +76,24 @@
 #define LED_BUILTIN 13
 #endif
 
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
 const byte SD_chipSelect = 26;
 const byte RFID_chipSelect = 4;
 const byte HR_ISR_Pin = 34;
 volatile int HRinterruptCounter = 0;
 int HRnumberOfInterrupts = 0;
-void setupHeartRate()
-{
-  portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-  pinMode(HR_ISR_Pin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(HR_ISR_Pin), HRhandleInterrupt, FALLING);
-}
+
 void IRAM_ATTR HRhandleInterrupt() {
   portENTER_CRITICAL_ISR(&mux);
   HRinterruptCounter++;
   portEXIT_CRITICAL_ISR(&mux);
+}
+
+void setupHeartRate()
+{
+  pinMode(HR_ISR_Pin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(HR_ISR_Pin), HRhandleInterrupt, FALLING);
 }
 
 void setup()
@@ -98,15 +101,15 @@ void setup()
   Serial.begin(115200);
   Serial.print("Initializing SD card...");
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
+  if (!SD.begin(SD_chipSelect)) {
     Serial.println("Card failed, or not present, fatal.");
     // don't do anything more:
     while (1)
     {
       digitalWrite(LED_BUILTIN, HIGH);
-      deley(250);
+      delay(250);
       digitalWrite(LED_BUILTIN, LOW);
-      deley(250);
+      delay(250);
     }
   }
   Serial.println("card initialized.");
