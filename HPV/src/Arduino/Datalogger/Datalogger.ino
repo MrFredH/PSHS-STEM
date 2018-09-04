@@ -118,10 +118,10 @@ void setup()
 void loop()
 {
   String dataString = "HR,";
-  while(interruptCounter>0){
+  while(HRinterruptCounter>0){
 
       portENTER_CRITICAL(&mux);
-      interruptCounter--;
+      HRinterruptCounter--;
       portEXIT_CRITICAL(&mux);
 
       HRnumberOfInterrupts++;
