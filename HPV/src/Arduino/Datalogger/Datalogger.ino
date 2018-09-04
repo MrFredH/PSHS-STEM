@@ -55,8 +55,9 @@
   2 BAT – LiPo Battery
   3 Low signals 3.3V Reg Shutdown
 */
-#include <Time.h>
 //#include <TimeLib.h>
+#include "Time.h"
+//#include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
 //#include <TinyGPS.h>       // http://arduiniana.org/libraries/TinyGPS/
 //#include <SoftwareSerial.h>
 
@@ -117,7 +118,8 @@ int RFIDnumberOfInterrupts = 0;
   "secret": 1438329
   }
 */
-
+// TODO: Read in the WiFi configurations and store them in memory.
+// TODO: Need to support more than 1 access point, allow code to scan and connect to best one dynamically.
 // WiFi network name and password:
 char * networkName;
 char * networkPswd;
@@ -127,6 +129,12 @@ char * hostDomain;
 int hostPort;
 // Name of this vehicle
 char * vehicle;
+
+char* ntpServer1 = "time.google.com";
+char* ntpServer2 = "pool.ntp.org";
+char* ntpServer3 = "time.nist.gov";
+const long  gmtOffset_sec = 36000;
+const int   daylightOffset_sec = 36000;
 
 // The array of DStemperature sensors are located on this pin.
 const int ONE_WIRE_BUS = 21;
@@ -143,6 +151,24 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 unsigned long oldTime;
 
+void syncTimeSources()
+{
+  // TODO: Need to set localTime in the ESP on startup and whenever we see the need to correct.
+  // Sources: RTC i2c module storing time during power off.
+  //          NTP Servers read in from config file on SD or failover to defaults. Corrects RTC
+  //          GPS -> Corrects local time, updates RTC
+  // Try RTC, then attempt NTP update, GPS time is highest priority. NTP and GPS update RTC.
+  // Trust GPS, then NTP, then RTC.
+  // TODO: Store TZ data in SD config file.
+  /*
+    int epoch_time = 1527369964;
+  timeval epoch = {epoch_time, 0};
+  const timeval *tv = &epoch;
+  timezone utc = {0,0};
+  const timezone *tz = &utc;
+  settimeofday(tv, tz)
+  */
+}
 
 void IRAM_ATTR HRhandleInterrupt() {
   portENTER_CRITICAL_ISR(&mux);
@@ -175,6 +201,10 @@ void setupISR()
 void setup()
 {
   Serial.begin(115200);
+  //setSyncProvider(RTC.get);   // the function to get the time from the RTC
+  //if(timeStatus()!= timeSet)
+  //{ // Failed RTC
+  //}
   Serial.print("Initializing SD card...");
   // see if the card is present and can be initialized:
   if (!SD.begin(SD_chipSelect)) {
@@ -189,6 +219,7 @@ void setup()
     }
   }
   Serial.println("card initialized.");
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2, ntpServer3);
   setupISR();
   sensors.begin();
   dht.begin();
@@ -271,6 +302,7 @@ void loop()
 
   if ((millis() - oldTime) > 1000)   // Only process counters once per second
   {
+    WiFiClient client;
     unsigned long resume_time = millis();
     sensors.requestTemperatures();
     StaticJsonDocument<800> doc;
@@ -284,7 +316,12 @@ void loop()
 
     hum = dht.readHumidity();
     temp = dht.readTemperature();
-    hic = dht.computeHeatIndex(temp, hum, false);
+    hic = dht.computeHeatIndex(dht.readTemperature(true), hum);
+    struct tm timeinfo;
+    if(getLocalTime(&timeinfo))
+    {
+      root["time"] = (String)timeinfo.tm_mday+"/"+timeinfo.tm_mon+"/"+timeinfo.tm_year+" "+timeinfo.tm_hour+":"+timeinfo.tm_min+":"+timeinfo.tm_sec;
+    }
     root["vehicle"] = vehicle;
     root["chipid"] = getSerial();
     root["now"] = millis();
@@ -292,10 +329,11 @@ void loop()
     root["RSSI"] = WiFi.RSSI();
     root["RSSIUnit"] = "dBm";
     // DH22
-    root["DH22Temp"] = temp;
-    root["DH22Hum"] = hum;
-    root["DH22HIndex"] = hic;
-
+    if (!isnan(hum) && !isnan(temp)) {
+      root["DH22Temp"] = temp;
+      root["DH22Hum"] = hum;
+      root["DH22HIndex"] = hic;
+    }
     while (HRinterruptCounter > 0) {
 
       portENTER_CRITICAL(&mux);
@@ -326,7 +364,8 @@ void loop()
     //    dataString+=HRnumberOfInterrupts;
 
     // Array of DS Temperature sensors, if any.
-    JsonArray& temps = root.createNestedArray("temp");
+    JsonArray temps = root.createNestedArray("temp");
+
     for (int i = 0 ; i < sensors.getDeviceCount(); i++)
     {
       DeviceAddress deviceAddress;
@@ -341,7 +380,8 @@ void loop()
     HRnumberOfInterrupts = 0;
     HALLnumberOfInterrupts = 0;
     String out;
-    root.prettyPrintTo(out);
+    serializeJsonPretty(root, out);
+    //root.prettyPrintTo(out);
     // POST Section
     String postRequest =
       (String)"POST /newdata.php HTTP/1.0\r\n" +
@@ -349,13 +389,13 @@ void loop()
       //"Host: " + server + "\r\n" +
       //"Accept: *" + "/" + "*\r\n" +
       "Connection: close\r\n" +
-      "Content-Length: " + root.measureLength() + "\r\n" +
+      "Content-Length: " + out.length() + "\r\n" +
       "Content-Type: application/json\r\n" +
       "\r\n" + out;
 
     // This will send the request to the server
     Serial.print(postRequest);
-    if (!client.connect(host, port))
+    if (!client.connect(hostDomain, hostPort))
     {
       Serial.println("connection failed");
       return;
@@ -393,7 +433,7 @@ void loop()
       dataFile.println(out);
       dataFile.close();
       // print to the serial port too:
-      Serial.println(dataString);
+      Serial.println(out);
     }
     // if the file isn't open, pop up an error:
     else {
