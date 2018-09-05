@@ -1,3 +1,5 @@
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
 //#include <VarSpeedServo.h>
 
 /* Servo control for AL5D arm */
@@ -29,6 +31,22 @@ void set_arm( float x, float y, float z, float grip_angle_d, int servoSpeed );
 /* Gripper servo HS-422 */
 #define GRI_SERVO 5
 
+// called this way, it uses the default address 0x40
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+// you can also call it with a different address you want
+//Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x41);
+// you can also call it with a different address and I2C interface
+//Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(&Wire, 0x40);
+
+// Depending on your servo make, the pulse width min and max may vary, you
+// want these to be as small/large as possible without hitting the hard stop
+// for max range. You'll have to tweak them as necessary to match the servos you
+// have!
+#define SERVOMIN  150 // this is the 'minimum' pulse length count (out of 4096)
+#define SERVOMAX  600 // this is the 'maximum' pulse length count (out of 4096)
+
+
+
 /* pre-calculations */
 
 float hum_sq = HUMERUS * HUMERUS;
@@ -36,31 +54,42 @@ float uln_sq = ULNA * ULNA;
 int servoSPeed = 10;
 //ServoShield servos; //ServoShield object
 
-VarSpeedServo servo1, servo2, servo3, servo4, servo5, servo6;
+//VarSpeedServo servo1, servo2, servo3, servo4, servo5, servo6;
 
 int loopCounter = 0;
 int pulseWidth = 6.6;
 int microsecondsToDegrees;
-
+void servo(int servoNo, int microsecondsToDegrees, int servoSpeed)
+{
+    pwm.setPWM(servoNo, 0, microsecondsToDegrees);
+}
 void setup()
 {
   Serial.begin( 9600 );
   Serial.println("Start");
-  servo1.attach( BAS_SERVO, 544, 2400 );
-  servo2.attach( SHL_SERVO, 544, 2400 );
-  servo3.attach( ELB_SERVO, 544, 2400 );
-  servo4.attach( WRI_SERVO, 544, 2400 );
-  servo5.attach( WRO_SERVO, 544, 2400 );
-  servo6.attach( GRI_SERVO, 544, 2400 );
+  pwm.begin();
+
+  pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
+
+  delay(10);
+
+  //  servo1.attach( BAS_SERVO, 544, 2400 );
+  //  servo2.attach( SHL_SERVO, 544, 2400 );
+  //  servo3.attach( ELB_SERVO, 544, 2400 );
+  //  servo4.attach( WRI_SERVO, 544, 2400 );
+  //  servo5.attach( WRO_SERVO, 544, 2400 );
+  //  servo6.attach( GRI_SERVO, 544, 2400 );
   //delay( 5500 );
-  Serial.println("Servos attached");
+  //Serial.println("Servos attached");
   //servos.start(); //Start the servo shield
   servo_park();
-  set_arm( -300, 0, 100, 0 ,10); //
+  delay(5000);
+  set_arm( -300, 0, 100, 0 , 10); //
 }
 
 void loop()
 {
+  /*
   loopCounter += 1;
   //delay(7000);
   //delay(5000);
@@ -76,6 +105,7 @@ void loop()
     exit(0);
   }//pause program - hit reset to continue
   //exit(0);
+  */
 }
 
 /* arm positioning routine utilizing inverse kinematics *
@@ -89,22 +119,22 @@ void set_arm( float x, float y, float z, float grip_angle_d, int servoSpeed )
   /* Base angle and radial distance from x,y coordinates */
   float bas_angle_r = atan2( x, y );
   float rdist = sqrt(( x * x ) + ( y * y ));
-  
+
   /* rdist is y coordinate for the arm */
   y = rdist;
-  
+
   /* Grip offsets calculated based on grip angle */
   float grip_off_z = ( sin( grip_angle_r )) * GRIPPER;
   float grip_off_y = ( cos( grip_angle_r )) * GRIPPER;
-  
+
   /* Wrist position */
   float wrist_z = ( z - grip_off_z ) - BASE_HGT;
   float wrist_y = y - grip_off_y;
-  
+
   /* Shoulder to wrist distance ( AKA sw ) */
   float s_w = ( wrist_z * wrist_z ) + ( wrist_y * wrist_y );
   float s_w_sqrt = sqrt( s_w );
-  
+
   /* s_w angle to ground */
   float a1 = atan2( wrist_z, wrist_y );
 
@@ -133,36 +163,36 @@ void set_arm( float x, float y, float z, float grip_angle_d, int servoSpeed )
   /* Set servos */
   //servos.setposition( BAS_SERVO, ftl( bas_servopulse ));
   microsecondsToDegrees = map(ftl(bas_servopulse), 544, 2400, 0, 180);
-  servo1.write(microsecondsToDegrees, servoSpeed); // use this function so that you can set servo speed //
-  
+  servo(BAS_SERVO, microsecondsToDegrees, servoSpeed); // use this function so that you can set servo speed //
+
   //servos.setposition( SHL_SERVO, ftl( shl_servopulse ));
   microsecondsToDegrees = map(ftl(shl_servopulse), 544, 2400, 0, 180);
-  servo2.write(microsecondsToDegrees, servoSpeed);
-  
+  servo(SHL_SERVO, microsecondsToDegrees, servoSpeed);
+
   //servos.setposition( ELB_SERVO, ftl( elb_servopulse ));
   microsecondsToDegrees = map(ftl(elb_servopulse), 544, 2400, 0, 180);
-  servo3.write(microsecondsToDegrees, servoSpeed);
+  servo(ELB_SERVO, microsecondsToDegrees, servoSpeed);
 
   //servos.setposition( WRI_SERVO, ftl( wri_servopulse ));
   microsecondsToDegrees = map(ftl(wri_servopulse), 544, 2400, 0, 180);
-  servo4.write(microsecondsToDegrees, servoSpeed);
+  servo(WRI_SERVO, microsecondsToDegrees, servoSpeed);
 }
 
 /* move servos to parking position */
 void servo_park()
 {
   //servos.setposition( BAS_SERVO, 1500 );
-  servo1.write(90, 10);
+  servo(BAS_SERVO, 90, 10);
   //servos.setposition( SHL_SERVO, 2100 );
-  servo2.write(90, 10);
+  servo(SHL_SERVO, 90, 10);
   //servos.setposition( ELB_SERVO, 2100 );
-  servo3.write(90, 10);
+  servo(ELB_SERVO, 90, 10);
   //servos.setposition( WRI_SERVO, 1800 );
-  servo4.write(90, 10);
+  servo(WRI_SERVO, 90, 10);
   //servos.setposition( WRO_SERVO, 600 );
-  servo5.write(90, 10);
+  servo(WRO_SERVO, 90, 10);
   //servos.setposition( GRI_SERVO, 900 );
-  servo6.write(80, 10);
+  servo(GRI_SERVO, 80, 10);
   return;
 }
 
@@ -187,7 +217,7 @@ void line()
     set_arm( xaxis, 250, 120, 0 , 10);
     delay( 10 );
   }
-  
+
   for ( float xaxis = 100.0; xaxis > -100.0; xaxis -= 0.5 ) {
     set_arm( xaxis, 250, 120, 0 , 10);
     delay( 10 );
