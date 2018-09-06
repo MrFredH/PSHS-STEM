@@ -86,9 +86,28 @@ void setup()
   delay(5000);
   set_arm( -300, 0, 100, 0 , 10); //
 }
-
+String command="";
 void loop()
 {
+  char c;
+  if(Serial.available()>0)
+  {
+    c = Serial.read();
+    if(c=='\n' || c=='\r')
+    {
+      if(command.length()>0)
+      {
+        // TODO: Parse command
+        //set_arm( -300, 0, 100, 0 , 10); //
+        
+      }
+      command = "";
+    }
+    else
+    {
+      command += c;
+    }
+  }
   /*
   loopCounter += 1;
   //delay(7000);
@@ -106,6 +125,7 @@ void loop()
   }//pause program - hit reset to continue
   //exit(0);
   */
+  
 }
 
 /* arm positioning routine utilizing inverse kinematics *
