@@ -86,6 +86,21 @@ void setup()
   delay(5000);
   set_arm( -300, 0, 100, 0 , 10); //
 }
+String getValue(String data, char separator, int index)
+{
+    int found = 0;
+    int strIndex[] = { 0, -1 };
+    int maxIndex = data.length() - 1;
+
+    for (int i = 0; i <= maxIndex && found <= index; i++) {
+        if (data.charAt(i) == separator || i == maxIndex) {
+            found++;
+            strIndex[0] = strIndex[1] + 1;
+            strIndex[1] = (i == maxIndex) ? i+1 : i;
+        }
+    }
+    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
 String command="";
 void loop()
 {
@@ -97,9 +112,21 @@ void loop()
     {
       if(command.length()>0)
       {
-        // TODO: Parse command
+        // DONE: Parse command
         //set_arm( -300, 0, 100, 0 , 10); //
-        
+        float x, y, z, gripAngl;
+        int sp;
+        x = getValue(command, ',', 0).toFloat();
+        y = getValue(command, ',', 1).toFloat();
+        z = getValue(command, ',', 2).toFloat();
+        gripAngl = getValue(command, ',', 3).toFloat();
+        sp = getValue(command, ',', 4).toInt();
+        Serial.println((String)"Move: ["+String(x)+", "+String(y)+", "+String(z)+"], "+String(gripAngl)+", "+String(sp));
+        if(sp<=0)
+        {
+          sp=10;
+        }
+        set_arm( x, y, z, gripAngl , sp);
       }
       command = "";
     }
