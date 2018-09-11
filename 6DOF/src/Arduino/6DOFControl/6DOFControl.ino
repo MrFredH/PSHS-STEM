@@ -61,7 +61,7 @@ int pulseWidth = 6.6;
 int microsecondsToDegrees;
 void servo(int servoNo, int microsecondsToDegrees, int servoSpeed)
 {
-    pwm.setPWM(servoNo, 0, microsecondsToDegrees);
+  pwm.setPWM(servoNo, 0, microsecondsToDegrees);
 }
 void setup()
 {
@@ -88,45 +88,71 @@ void setup()
 }
 String getValue(String data, char separator, int index)
 {
-    int found = 0;
-    int strIndex[] = { 0, -1 };
-    int maxIndex = data.length() - 1;
+  int found = 0;
+  int strIndex[] = { 0, -1 };
+  int maxIndex = data.length() - 1;
 
-    for (int i = 0; i <= maxIndex && found <= index; i++) {
-        if (data.charAt(i) == separator || i == maxIndex) {
-            found++;
-            strIndex[0] = strIndex[1] + 1;
-            strIndex[1] = (i == maxIndex) ? i+1 : i;
-        }
+  for (int i = 0; i <= maxIndex && found <= index; i++) {
+    if (data.charAt(i) == separator || i == maxIndex) {
+      found++;
+      strIndex[0] = strIndex[1] + 1;
+      strIndex[1] = (i == maxIndex) ? i + 1 : i;
     }
-    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+  }
+  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
-String command="";
+String command = "";
 void loop()
 {
   char c;
-  if(Serial.available()>0)
+  if (Serial.available() > 0)
   {
     c = Serial.read();
-    if(c=='\n' || c=='\r')
+    if (c == '\n' || c == '\r')
     {
-      if(command.length()>0)
+      if (command.length() > 0)
       {
-        // DONE: Parse command
-        //set_arm( -300, 0, 100, 0 , 10); //
-        float x, y, z, gripAngl;
-        int sp;
-        x = getValue(command, ',', 0).toFloat();
-        y = getValue(command, ',', 1).toFloat();
-        z = getValue(command, ',', 2).toFloat();
-        gripAngl = getValue(command, ',', 3).toFloat();
-        sp = getValue(command, ',', 4).toInt();
-        Serial.println((String)"Move: ["+String(x)+", "+String(y)+", "+String(z)+"], "+String(gripAngl)+", "+String(sp));
-        if(sp<=0)
+        command.trim();
+        command.toUpperCase();
+        // Echo command for port searching use.
+        if (command.startsWith("6DOF?"))
         {
-          sp=10;
+          Serial.println("Yes");
+        } else if (command.startsWith("PARK"))
+        {
+          servo_park();
+        } else if (command.startsWith("CIRCLE"))
+        {
+          circle();
+        } else if (command.startsWith("LINE"))
+        {
+          line();
+        } else if (command.startsWith("ZERO_X"))
+        {
+          zero_x();
         }
-        set_arm( x, y, z, gripAngl , sp);
+        else if (command.startsWith("H"))
+        {
+          Serial.println("6DOF Code, I move a robot arm, tell me: [6DOF?, PARK, CIRCLE, LINE, ZERO_X, HELP, <x>,<y>,<z>,<grip angle>,<delay (ms)>]");
+        }
+        else
+        {
+          // DONE: Parse command
+          //set_arm( -300, 0, 100, 0 , 10); //
+          float x, y, z, gripAngl;
+          int sp;
+          x = getValue(command, ',', 0).toFloat();
+          y = getValue(command, ',', 1).toFloat();
+          z = getValue(command, ',', 2).toFloat();
+          gripAngl = getValue(command, ',', 3).toFloat();
+          sp = getValue(command, ',', 4).toInt();
+          Serial.println((String)"Move: [" + String(x) + ", " + String(y) + ", " + String(z) + "], " + String(gripAngl) + ", " + String(sp));
+          if (sp <= 0)
+          {
+            sp = 10;
+          }
+          set_arm( x, y, z, gripAngl , sp);
+        }
       }
       command = "";
     }
@@ -136,23 +162,23 @@ void loop()
     }
   }
   /*
-  loopCounter += 1;
-  //delay(7000);
-  //delay(5000);
-  //zero_x();
-  //line();
-  //circle();
-  delay(4000);
+    loopCounter += 1;
+    //delay(7000);
+    //delay(5000);
+    //zero_x();
+    //line();
+    //circle();
+    delay(4000);
 
-  if (loopCounter > 1) {
+    if (loopCounter > 1) {
     servo_park();
     //set_arm( 0, 0, 0, 0 ,10); // park
     delay(5000);
     exit(0);
-  }//pause program - hit reset to continue
-  //exit(0);
+    }//pause program - hit reset to continue
+    //exit(0);
   */
-  
+
 }
 
 /* arm positioning routine utilizing inverse kinematics *
