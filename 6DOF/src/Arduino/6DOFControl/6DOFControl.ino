@@ -380,7 +380,7 @@ void loop()
             sp = 10;
           }
           
-          myprintln((String)"M[" + String(x) + "," + String(y) + "," + String(z) + "]," + String(degrees(gripAngl)) + "," + String(degrees(pinch)) + ","+sp);          
+          //myprintln((String)"M[" + String(x) + "," + String(y) + "," + String(z) + "]," + String(degrees(gripAngl)) + "," + String(degrees(pinch)) + ","+sp);          
           set_arm( x, y, z, gripAngl , sp);
           servo(GRI_SERVO, degrees(pinch), sp);
         }
