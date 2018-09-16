@@ -205,12 +205,15 @@ void setup()
   //if(timeStatus()!= timeSet)
   //{ // Failed RTC
   //}
+  syncTimeSources();
   Serial.print("Initializing SD card...");
+  pinMode(LED_BUILTIN, OUTPUT);
+  //pinMode(SD_chipSelect, OUTPUT);
   // see if the card is present and can be initialized:
   if (!SD.begin(SD_chipSelect)) {
     Serial.println("Card failed, or not present, fatal.");
     // don't do anything more:
-    while (1)
+    //while (1)
     {
       digitalWrite(LED_BUILTIN, HIGH);
       delay(250);

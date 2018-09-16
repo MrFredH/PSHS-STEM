@@ -1072,6 +1072,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   port: 
   baud: 
+  updateInterval: 0
+  position:
+    x: 0
+    y: 0
+    z: 0
+  pinch: 0
+  rotation: 0
+  didStartup: 0
 --- !u!1001 &1367067090
 Prefab:
   m_ObjectHideFlags: 0
@@ -1918,8 +1926,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 46c1737f632190c4f88615562d62350f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  port: \\\\.\\COM3
-  baud: 9600
+  port: \\.\COM16
+  baud: 115200
+  updateInterval: 0.5
+  position:
+    x: 0
+    y: 0
+    z: 0
+  pinch: 0
+  rotation: 0
+  didStartup: 0
 --- !u!4 &1733608621
 Transform:
   m_ObjectHideFlags: 0
