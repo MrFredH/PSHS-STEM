@@ -33,7 +33,7 @@ public class ExtractHandData : MonoBehaviour
             j = 115200;
             //baud = "115200";
         }
-        if (port == null || port.Trim().Length <= 2)
+        if (port == null)// || port.Trim().Length <= 2)
         {
             Debug.Log("Port is null or blank");
             //            Console.WriteLine("Port is null or blank");

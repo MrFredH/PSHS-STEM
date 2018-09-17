@@ -258,10 +258,13 @@ void ScanI2C(int sda, int scl)
   }
 }
 
-
-
 void servo(int servoNo, int microsecondsToDegrees, int servoSpeed)
 {
+  if(microsecondsToDegrees<SERVOMIN)
+    microsecondsToDegrees=SERVOMIN;
+  if(microsecondsToDegrees>SERVOMAX)
+    microsecondsToDegrees=SERVOMAX;
+  
   pwm.setPWM(servoNo, 0, microsecondsToDegrees);
 }
 void setup()
@@ -380,7 +383,7 @@ void loop()
             sp = 10;
           }
           
-          //myprintln((String)"M[" + String(x) + "," + String(y) + "," + String(z) + "]," + String(degrees(gripAngl)) + "," + String(degrees(pinch)) + ","+sp);          
+          myprintln((String)"M[" + String(x) + "," + String(y) + "," + String(z) + "]," + String(degrees(gripAngl)) + "," + String(degrees(pinch)) + ","+sp);          
           set_arm( x, y, z, gripAngl , sp);
           servo(GRI_SERVO, degrees(pinch), sp);
         }

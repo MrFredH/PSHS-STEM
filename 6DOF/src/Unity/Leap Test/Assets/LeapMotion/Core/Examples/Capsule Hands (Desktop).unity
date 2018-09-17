@@ -1926,7 +1926,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 46c1737f632190c4f88615562d62350f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  port: \\.\com16
+  port: \\.\com3
   baud: 115200
   updateInterval: 500
   position:

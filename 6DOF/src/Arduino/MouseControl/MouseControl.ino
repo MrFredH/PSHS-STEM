@@ -1,11 +1,11 @@
 /* AL5D robotic arm manual control using USB mouse. Servo controller by Renbotics with some pins swapped, USB Host Shield by Circuits At Home */
 #include <ServoShield.h>
 #include <Spi.h>
-#include <Max3421e.h>
-#include <Usb.h>
+//#include <Max3421e.h>
+//#include <Usb.h>
  
-#define DEVADDR 1
-#define CONFVALUE 1
+//#define DEVADDR 1
+//#define CONFVALUE 1
 
 
 
@@ -42,8 +42,8 @@ void setup();
 void loop();
  
 ServoShield servos;                       //ServoShield object
-MAX3421E Max;
-USB Usb;
+//MAX3421E Max;
+//USB Usb;
 //ServoShield servos;                       //ServoShield object
 
 /* Arm data structure */
