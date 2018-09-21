@@ -3,6 +3,7 @@ using System;
 using System.IO.Ports;
 using Leap;
 using System.Collections.Generic;
+using System.Collections;
 //using System.Threading;
 
 public class ExtractHandData : MonoBehaviour
@@ -33,6 +34,7 @@ public class ExtractHandData : MonoBehaviour
             j = 115200;
             //baud = "115200";
         }
+        
         if (port == null)// || port.Trim().Length <= 2)
         {
             Debug.Log("Port is null or blank");
@@ -45,7 +47,7 @@ public class ExtractHandData : MonoBehaviour
                 //Console.WriteLine(s);
                 Debug.Log(s);
                 //port = s;
-                sp = new SerialPort(s, j);
+                sp = new SerialPort(s.ToString(), j);
                 
                 //                if (!sp.IsOpen)
                 //                {
@@ -143,20 +145,21 @@ public class ExtractHandData : MonoBehaviour
         //port = "\\\\.\\COM16";
         else
         {
+            //port = "\\\\.\\COM16";
+            Debug.Log(port);
             //            sp = new SerialPort(port, j, Parity.None, 8, StopBits.One);
             //sp.Handshake = Handshake.RequestToSendXOnXOff;
             sp = new SerialPort(port, j);
         }
         if (!sp.IsOpen)
         {
-
             try
             {
                 sp.Open();
                 //sp.DtrEnable = true;
 
                 // clear input buffer from previous garbage
-                sp.DiscardInBuffer();
+                //sp.DiscardInBuffer();
                 //sp.DiscardOutBuffer();
             }
             catch (Exception e)
@@ -167,8 +170,32 @@ public class ExtractHandData : MonoBehaviour
                 }
             }
         }
+        InvokeRepeating("UpdateArm", updateInterval, updateInterval);
     }
-    
+
+
+    void UpdateArm()
+    {
+        //Debug.Log("Times Up");
+        if (sp.IsOpen == false)
+        {
+        //    didStartup = false;
+        }
+        else
+        {
+            // Check if comms buffer is half full, abandon further writes till it clears.
+            //                    if(sp.BytesToWrite<=200)
+
+            //        if (sp.CtsHolding == true)
+            //if(1==0)
+            {
+                sp.WriteLine(position.x + "," + position.y + "," + position.z + "," + rotation + "," + pinch);
+                //sp.DiscardInBuffer();
+                //sp.BaseStream.Flush();
+            }
+        }
+    }
+
     // Update is called once per frame
     void Update()
     {
@@ -176,36 +203,16 @@ public class ExtractHandData : MonoBehaviour
         {
             Start();
         }
-        
-        if (Time.time >= myDelay)
+        frame = controller.Frame(); // controller is a Controller object
+                                    //        myDelay = Time.time + updateInterval * 10;
+        if (frame.Hands.Count > 0)
         {
-            frame = controller.Frame(); // controller is a Controller object
-            myDelay = Time.time + updateInterval;
-            if (frame.Hands.Count > 0)
-            {
-                List<Hand> hands = frame.Hands;
-                Hand firstHand = hands[0];
-                position = firstHand.PalmPosition;
-                rotation = firstHand.PalmNormal.Roll;
-                //rotation = firstHand.GrabAngle;
-                pinch = firstHand.PinchDistance;
-                if (sp.IsOpen == false)
-                {
-                    //didStartup = false;
-                }
-                else
-                {
-                    // Check if comms buffer is half full, abandon further writes till it clears.
-//                    if(sp.BytesToWrite<=200)
-
-            //        if (sp.CtsHolding == true)
-                    {
-                        sp.WriteLine(position.x + "," + position.y + "," + position.z + "," + rotation + "," + pinch);
-                        sp.DiscardInBuffer();
-                        sp.BaseStream.Flush();
-                    }
-                }
-            }
+            List<Hand> hands = frame.Hands;
+            Hand firstHand = hands[0];
+            position = firstHand.PalmPosition;
+            rotation = firstHand.PalmNormal.Roll;
+            //rotation = firstHand.GrabAngle;
+            pinch = firstHand.PinchDistance;
         }
     }
     private void OnApplicationQuit()
@@ -213,7 +220,7 @@ public class ExtractHandData : MonoBehaviour
         if (sp != null)
         {
             sp.Close();
-            sp = null;
+  //          sp = null;
         }
     }
     private void OnDestroy()
@@ -222,7 +229,7 @@ public class ExtractHandData : MonoBehaviour
         if (sp != null)
         {
             sp.Close();
-            sp = null;
+//            sp = null;
         }
     }
 }

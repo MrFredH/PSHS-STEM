@@ -10,18 +10,18 @@
          | [ ]N/C                    SCK/13[x] |   B5   SD SCK
          | [ ]IOREF                 MISO/12[x] |   .    SD MISO
          | [ ]RST                   MOSI/11[x]~|   .    SD MOSI
- SD  5V  | [x]3V3    +---+               10[x]~|   .    SD EN
- LCD 5V  | [x]5v    -| A |-               9[X]~|   .    AUDIO OUT L
- SD  GND | [x]GND   -| R |-               8[ ] |   B0
- LCD GND | [x]GND   -| D |-                    |
+  SD  5V  | [x]3V3    +---+               10[x]~|   .    SD EN
+  LCD 5V  | [x]5v    -| A |-               9[X]~|   .    AUDIO OUT L
+  SD  GND | [x]GND   -| R |-               8[ ] |   B0
+  LCD GND | [x]GND   -| D |-                    |
          | [ ]Vin   -| U |-               7[ ] |   D7
          |          -| I |-               6[ ]~|   .
          | [ ]A0    -| N |-               5[ ]~|   .
          | [ ]A1    -| O |-               4[ ] |   .
          | [ ]A2     +---+           INT1/3[ ]~|   .
          | [ ]A3                     INT0/2[ ] |   .
- LCD I2C | [x]A4/SDA  RST SCK MISO     TX>1[ ] |   .
- LCD I2C | [x]A5/SCL  [ ] [ ] [ ]      RX<0[ ] |   D0
+  LCD I2C | [x]A4/SDA  RST SCK MISO     TX>1[ ] |   .
+  LCD I2C | [x]A5/SCL  [ ] [ ] [ ]      RX<0[ ] |   D0
          |            [ ] [ ] [ ]              |
          |  UNO_R3    GND MOSI 5V  ____________/
           \_______________________/
@@ -84,9 +84,9 @@
          http://busyducks.com/ascii-art-arduinos
 */
 /* Wants the following libraries:
- *  Adafruit-PWM-Servo-Driver-Library
- *  LiquidCrystal_I2C
- */
+    Adafruit-PWM-Servo-Driver-Library
+    LiquidCrystal_I2C
+*/
 #include <SPI.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
@@ -99,7 +99,7 @@ void circle();
 void line();
 void zero_x();
 void servo_park();
-void set_arm( float x, float y, float z, float grip_angle_d, int servoSpeed );
+void set_arm( float x, float y, float z, float grip_angle_d);
 
 LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
 
@@ -135,8 +135,10 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 // want these to be as small/large as possible without hitting the hard stop
 // for max range. You'll have to tweak them as necessary to match the servos you
 // have!
-#define SERVOMIN  150 // this is the 'minimum' pulse length count (out of 4096)
-#define SERVOMAX  600 // this is the 'maximum' pulse length count (out of 4096)
+//#define SERVOMIN  150 // this is the 'minimum' pulse length count (out of 4096)
+//#define SERVOMAX  600 // this is the 'maximum' pulse length count (out of 4096)
+#define SERVOMIN  500 // this is the 'minimum' pulse length count (out of 4096)
+#define SERVOMAX  2500 // this is the 'maximum' pulse length count (out of 4096)
 
 
 
@@ -257,15 +259,106 @@ void ScanI2C(int sda, int scl)
     Serial.println(F(" milliseconds."));
   }
 }
-
-void servo(int servoNo, int microsecondsToDegrees, int servoSpeed)
+struct SERVO {
+  int min_value;
+  int max_value;
+  boolean invert;
+  boolean disable;
+  int target;
+  int origin;
+};
+#define MAX_SERVOS 6
+struct ARM {
+  float x;
+  float y;
+  float z;
+  float pinch;
+  float gripAngle;
+  int   time_frame;
+  struct SERVO servos[MAX_SERVOS];
+} arm;
+void dump_values()
 {
-  if(microsecondsToDegrees<SERVOMIN)
-    microsecondsToDegrees=SERVOMIN;
-  if(microsecondsToDegrees>SERVOMAX)
-    microsecondsToDegrees=SERVOMAX;
-  
-  pwm.setPWM(servoNo, 0, microsecondsToDegrees);
+  Serial.println("p:[" + String(arm.x) + "," + String(arm.y) + "," + String(arm.z) + "]");
+  Serial.println("Pinch:" + String(arm.pinch));
+  Serial.println("GripAngle:" + String(arm.gripAngle));
+  Serial.println("time_frame:" + String(arm.time_frame));
+  for (int i = 0 ; i < MAX_SERVOS; i++)
+  {
+    Serial.println("Servo(" + String(i) + ")=OT[" + String(arm.servos[i].origin) + "," + String(arm.servos[i].target) + "],LIM[" + String(arm.servos[i].min_value) + "," + String(arm.servos[i].max_value) + "]" + String(arm.servos[i].invert) + "," + String(arm.servos[i].disable));
+  }
+}
+void set_servo(int no, int min_value, int max_value, boolean invert, boolean disable)
+{
+  arm.servos[no].min_value = min_value;
+  arm.servos[no].max_value = max_value;
+  arm.servos[no].invert = invert;
+  arm.servos[no].disable = disable;
+  arm.servos[no].target = min_value + ((max_value - min_value) / 2);
+  arm.servos[no].origin = min_value + ((max_value - min_value) / 2);
+}
+#define MIN_ANGLE 0
+#define MAX_ANGLE 270
+void servo(int servoNo, int Angle)
+{
+  Angle=(int)((float)SERVOMIN+(SERVOMAX-SERVOMIN)/MAX_ANGLE*Angle);
+  // Clamp the servo to reasonable bounds.
+  if (Angle < arm.servos[servoNo].min_value)
+  {
+    Angle = arm.servos[servoNo].min_value;
+  }
+  if (Angle > arm.servos[servoNo].max_value)
+  {
+    Angle = arm.servos[servoNo].max_value;
+  }
+  // Scale angle to reasonable limits
+  Angle = (float)(MAX_ANGLE - MIN_ANGLE)/360.0*Angle;
+  arm.servos[servoNo].origin = arm.servos[servoNo].target;
+  arm.servos[servoNo].target = Angle;
+}
+float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+void servo_go()
+{
+  //  unsigned long now = millis();
+  dump_values();
+  // Clamp servo move speed to nothing less than 100 ms.
+  // Anything faster is too violent on the servos.
+  if (arm.time_frame <= 100)
+  {
+    arm.time_frame = 100;
+  }
+  float steps = arm.time_frame / 5;
+  for (int s = 0; s < steps; s++)
+  {
+    delay(5);
+    for (int i = 0; i < MAX_SERVOS; i++)
+    {
+      if (!arm.servos[i].disable)
+      {
+        float jump = arm.servos[i].origin + (arm.servos[i].target - arm.servos[i].origin) / steps * s;
+
+        if (arm.servos[i].invert)
+        {
+          pwm.setPWM(i, 0, jump);
+        }
+        else
+        {
+          pwm.setPWM(i, 0, mapfloat(jump, arm.servos[i].min_value, arm.servos[i].max_value, arm.servos[i].max_value, arm.servos[i].min_value));
+        }
+      }
+    }
+  }
+  for (int i = 0; i < MAX_SERVOS; i++)
+  {
+    if (!arm.servos[i].disable)
+    {
+      arm.servos[i].origin = arm.servos[i].target;
+    }
+  }
+  dump_values();
 }
 void setup()
 {
@@ -273,9 +366,9 @@ void setup()
   Serial.begin( 115200 );
   Serial.println("Start");
   //Wire.begin();
-//  ScanI2C(4, 5);
-  
-//  lcd.init();                      // initialize the lcd 
+  //  ScanI2C(4, 5);
+
+  //  lcd.init();                      // initialize the lcd
   lcd.init(); // initialize the lcd
   lcd.backlight();
   lcd.home(); lcd.clear();
@@ -284,8 +377,14 @@ void setup()
   pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
 
   delay(10);
+  //set_servo(int no, int min_value, int max_value, boolean invert, boolean disable)
 
-  //  servo1.attach( BAS_SERVO, 544, 2400 );
+  set_servo(BAS_SERVO, SERVOMIN, SERVOMAX, false, false);
+  set_servo(SHL_SERVO, SERVOMIN, SERVOMAX, false, false);
+  set_servo(ELB_SERVO, SERVOMIN, SERVOMAX, false, false);
+  set_servo(WRI_SERVO, SERVOMIN, SERVOMAX, false, false);
+  set_servo(WRO_SERVO, SERVOMIN, SERVOMAX, false, false);
+  set_servo(GRI_SERVO, SERVOMIN, SERVOMAX, false, false);
   //  servo2.attach( SHL_SERVO, 544, 2400 );
   //  servo3.attach( ELB_SERVO, 544, 2400 );
   //  servo4.attach( WRI_SERVO, 544, 2400 );
@@ -295,8 +394,8 @@ void setup()
   //Serial.println("Servos attached");
   //servos.start(); //Start the servo shield
   servo_park();
-//  delay(5000);
-//  set_arm( -300, 0, 100, 0 , 10); //
+  //  delay(5000);
+  //  set_arm( -300, 0, 100, 0 , 10); //
 }
 String getValue(String data, char separator, int index)
 {
@@ -317,13 +416,16 @@ void myprintln(String str)
 {
   Serial.println(str);
   lcd.clear();
-  lcd.print(str.substring(0,15));
-  if(str.length()>15)
+  lcd.print(str.substring(0, 15));
+  if (str.length() > 15)
   {
-    lcd.setCursor(0,1);
+    lcd.setCursor(0, 1);
     lcd.print(str.substring(15));
   }
 }
+
+
+
 String command = "";
 void loop()
 {
@@ -363,29 +465,45 @@ void loop()
           Serial.println("6DOF Code, I move a robot arm, tell me: [6DOF?, PARK, CIRCLE, LINE, ZERO_X, HELP, <x>,<y>,<z>,<grip angle>,<pinch>,<delay (ms)>]");
           lcd.clear();
           lcd.print("PARK,CIRCLE,LINE,ZERO_X");
-          lcd.setCursor(0,1);
+          lcd.setCursor(0, 1);
           lcd.print("x,y,z,ga,pch,dly");
+        }
+        else if (command.startsWith("S"))
+        {
+          arm.servos[getValue(command, ',', 1).toInt()].min_value = getValue(command, ',', 2).toInt();
+          arm.servos[getValue(command, ',', 1).toInt()].max_value = getValue(command, ',', 3).toInt();
+          //servo(getValue(command, ',', 1),
+        }
+        else if (command.startsWith("M"))
+        {
+          servo(getValue(command, ',', 1).toInt(), getValue(command, ',', 2).toInt());
+          arm.time_frame = getValue(command, ',', 3).toInt();
+          servo_go();
+        }
+        else if (command.startsWith("D"))
+        {
+          dump_values();
         }
         else
         {
           // DONE: Parse command
           //set_arm( -300, 0, 100, 0 , 10); //
-          float x, y, z, gripAngl, pinch;
-          int sp;
-          x = getValue(command, ',', 0).toFloat();
-          y = getValue(command, ',', 1).toFloat();
-          z = getValue(command, ',', 2).toFloat();
-          gripAngl = getValue(command, ',', 3).toFloat();
-          pinch = getValue(command, ',', 4).toFloat();
-          sp = getValue(command, ',', 5).toInt();
-          if (sp <= 0)
+          //          float x, y, z, gripAngl, pinch;
+          //          int sp;
+          arm.x = getValue(command, ',', 0).toFloat();
+          arm.y = getValue(command, ',', 1).toFloat();
+          arm.z = getValue(command, ',', 2).toFloat();
+          arm.gripAngle = getValue(command, ',', 3).toFloat();
+          arm.pinch = getValue(command, ',', 4).toFloat();
+          arm.time_frame = getValue(command, ',', 5).toInt();
+          if (arm.time_frame <= 0)
           {
-            sp = 10;
+            arm.time_frame = 10;
           }
-          
-          myprintln((String)"M[" + String(x) + "," + String(y) + "," + String(z) + "]," + String(degrees(gripAngl)) + "," + String(degrees(pinch)) + ","+sp);          
-          set_arm( x, y, z, gripAngl , sp);
-          servo(GRI_SERVO, degrees(pinch), sp);
+          myprintln((String)String(arm.x) + "," + String(arm.y) + "," + String(arm.z) + "," + String(degrees(arm.gripAngle)) + "," + String(arm.pinch));
+          set_arm(arm.x, arm.y, arm.z, arm.gripAngle);
+          servo(GRI_SERVO, arm.pinch);
+          servo_go();
         }
       }
       command = "";
@@ -419,7 +537,7 @@ void loop()
   z is height, y is distance from base center out, x is side to side. y,z can only be positive
   //void set_arm( uint16_t x, uint16_t y, uint16_t z, uint16_t grip_angle )
 */
-void set_arm( float x, float y, float z, float grip_angle_d, int servoSpeed )
+void set_arm( float x, float y, float z, float grip_angle_d)
 {
   float grip_angle_r = radians( grip_angle_d ); //grip angle in radians for use in calculations
 
@@ -470,49 +588,53 @@ void set_arm( float x, float y, float z, float grip_angle_d, int servoSpeed )
   /* Set servos */
   //servos.setposition( BAS_SERVO, ftl( bas_servopulse ));
   microsecondsToDegrees = map(ftl(bas_servopulse), 544, 2400, 0, 180);
-  servo(BAS_SERVO, microsecondsToDegrees, servoSpeed); // use this function so that you can set servo speed //
+  servo(BAS_SERVO, microsecondsToDegrees); // use this function so that you can set servo speed //
 
   //servos.setposition( SHL_SERVO, ftl( shl_servopulse ));
   microsecondsToDegrees = map(ftl(shl_servopulse), 544, 2400, 0, 180);
-  servo(SHL_SERVO, microsecondsToDegrees, servoSpeed);
+  servo(SHL_SERVO, microsecondsToDegrees);
 
   //servos.setposition( ELB_SERVO, ftl( elb_servopulse ));
   microsecondsToDegrees = map(ftl(elb_servopulse), 544, 2400, 0, 180);
-  servo(ELB_SERVO, microsecondsToDegrees, servoSpeed);
+  servo(ELB_SERVO, microsecondsToDegrees);
 
   //servos.setposition( WRI_SERVO, ftl( wri_servopulse ));
   microsecondsToDegrees = map(ftl(wri_servopulse), 544, 2400, 0, 180);
-  servo(WRI_SERVO, microsecondsToDegrees, servoSpeed);
+  servo(WRI_SERVO, microsecondsToDegrees);
 }
 
 /* move servos to parking position */
 void servo_park()
 {
   //servos.setposition( BAS_SERVO, 1500 );
-  servo(BAS_SERVO, 90, 10);
+  servo(BAS_SERVO, 90);
   //servos.setposition( SHL_SERVO, 2100 );
-  servo(SHL_SERVO, 90, 10);
+  servo(SHL_SERVO, 90);
   //servos.setposition( ELB_SERVO, 2100 );
-  servo(ELB_SERVO, 90, 10);
+  servo(ELB_SERVO, 90);
   //servos.setposition( WRI_SERVO, 1800 );
-  servo(WRI_SERVO, 90, 10);
+  servo(WRI_SERVO, 90);
   //servos.setposition( WRO_SERVO, 600 );
-  servo(WRO_SERVO, 90, 10);
+  servo(WRO_SERVO, 90);
   //servos.setposition( GRI_SERVO, 900 );
-  servo(GRI_SERVO, 80, 10);
+  servo(GRI_SERVO, 80);
+  servo_go();
   return;
 }
 
 void zero_x()
 {
+  arm.time_frame = 10;
   for ( double yaxis = 250.0; yaxis < 400.0; yaxis += 1 ) {
-    Serial.print(" yaxis= : "); Serial.println(yaxis);
-    set_arm( 0, yaxis, 200.0, 0 , 10);
+    //Serial.print(" yaxis= : "); Serial.println(yaxis);
+    set_arm( 0, yaxis, 200.0, 0);
+    servo_go();
     delay( 10 );
   }
 
   for ( double yaxis = 400.0; yaxis > 250.0; yaxis -= 1 ) {
-    set_arm( 0, yaxis, 200.0, 0 , 10);
+    set_arm( 0, yaxis, 200.0, 0);
+    servo_go();
     delay( 10 );
   }
 }
@@ -520,13 +642,16 @@ void zero_x()
 /* moves arm in a straight line */
 void line()
 {
+  arm.time_frame = 10;
   for ( double xaxis = -100.0; xaxis < 100.0; xaxis += 0.5 ) {
-    set_arm( xaxis, 250, 120, 0 , 10);
+    set_arm( xaxis, 250, 120, 0);
+    servo_go();
     delay( 10 );
   }
 
   for ( float xaxis = 100.0; xaxis > -100.0; xaxis -= 0.5 ) {
-    set_arm( xaxis, 250, 120, 0 , 10);
+    set_arm( xaxis, 250, 120, 0);
+    servo_go();
     delay( 10 );
   }
 }
@@ -536,10 +661,12 @@ void circle()
 #define RADIUS 50.0
   //float angle = 0;
   float zaxis, yaxis;
+  arm.time_frame = 50;
   for ( float angle = 0.0; angle < 360.0; angle += 1.0 ) {
     yaxis = RADIUS * sin( radians( angle )) + 300;
     zaxis = RADIUS * cos( radians( angle )) + 200;
-    set_arm( 0, yaxis, zaxis, 0 , 50);
+    set_arm( 0, yaxis, zaxis, 0);
+    servo_go();
     delay( 10 );
   }
 }

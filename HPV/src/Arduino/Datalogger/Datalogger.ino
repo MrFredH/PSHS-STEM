@@ -16,6 +16,13 @@
    Stage 3.
     Develop a live feedback system for the records.
 
+   Requires the following libraries:
+   OneWire
+   LiquidCrystal_I2C
+   DallasTemperature.h>
+   ArduinoJson.h>
+   DHT.h
+
    History:
    Date       Ver   Comments
    ========== ===== ===================================================================================
@@ -55,28 +62,50 @@
   2 BAT – LiPo Battery
   3 Low signals 3.3V Reg Shutdown
 */
+#ifndef ESP32
+#pragma message(The data logger needs the Board to be set to the Adafruit ESP32 Feather, Please fix it in the Tools, Boards menu.)
+#error Select ESP32 board.
+#endif
+
+
 //#include <TimeLib.h>
+
 #include "Time.h"
 //#include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
 //#include <TinyGPS.h>       // http://arduiniana.org/libraries/TinyGPS/
 //#include <SoftwareSerial.h>
 
+#ifdef WANT_WIFI
 #include <WiFi.h>
+#endif
+
 //#include <WiFiEspClient.h>
 //#include <WiFiEspServer.h>
 //#include <WiFiEspUdp.h>
 
 #include <Wire.h>
-#include <SPI.h>
 #include <SD.h>
-#include <sd_defines.h>
-#include <sd_diskio.h>
+#include <SPI.h>
+//#include <sd_defines.h>
+//#include <sd_diskio.h>
 #include <OneWire.h>
-#include <LiquidCrystal_PCF8574.h>
+
+#include <LiquidCrystal_I2C.h>
 #include <DallasTemperature.h>
+
+#include <Adafruit_GPS.h>
+
+// what's the name of the hardware serial port?
+#define GPSSerial Serial1
+
+// Connect to the GPS on the hardware port
+Adafruit_GPS GPS(&GPSSerial);
+
 #include <ArduinoJson.h>
 //#include <DHT.h>
-#include "DHT.h"
+//#include "DHT.h"
+#include "DHTesp.h"
+//#include "Ticker.h"
 
 // Define prototypes
 void printLine();
@@ -140,8 +169,10 @@ const int   daylightOffset_sec = 36000;
 const int ONE_WIRE_BUS = 21;
 
 #define DHTPIN 14     // what pin we're connected to
-#define DHTTYPE DHT22   // DHT 22  (AM2302)
-DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor for normal 16mhz Arduino
+//#define DHTTYPE DHT22   // DHT 22  (AM2302)
+//DHT dht(DHTPIN, DHTTYPE); // Initialize DHT sensor for normal 16mhz Arduino
+DHTesp dht;
+ComfortState cf;
 
 int chk;
 float hum;  //Stores humidity value
@@ -162,11 +193,11 @@ void syncTimeSources()
   // TODO: Store TZ data in SD config file.
   /*
     int epoch_time = 1527369964;
-  timeval epoch = {epoch_time, 0};
-  const timeval *tv = &epoch;
-  timezone utc = {0,0};
-  const timezone *tz = &utc;
-  settimeofday(tv, tz)
+    timeval epoch = {epoch_time, 0};
+    const timeval *tv = &epoch;
+    timezone utc = {0,0};
+    const timezone *tz = &utc;
+    settimeofday(tv, tz)
   */
 }
 
@@ -201,14 +232,35 @@ void setupISR()
 void setup()
 {
   Serial.begin(115200);
+  GPS.begin(9600);
+  // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  // uncomment this line to turn on only the "minimum recommended" data
+  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+  // For parsing data, we don't suggest using anything but either RMC only or RMC+GGA since
+  // the parser doesn't care about other sentences at this time
+  // Set the update rate
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ); // 1 Hz update rate
+  // For the parsing code to work nicely and have time to sort thru the data, and
+  // print it out we don't suggest using anything higher than 1 Hz
+     
+  // Request updates on antenna status, comment out to keep quiet
+  GPS.sendCommand(PGCMD_ANTENNA);
+
+  delay(1000);
+  
+  // Ask for firmware version
+  GPSSerial.println(PMTK_Q_RELEASE);
+
   //setSyncProvider(RTC.get);   // the function to get the time from the RTC
   //if(timeStatus()!= timeSet)
   //{ // Failed RTC
   //}
+  pinMode(SD_chipSelect, OUTPUT);
   syncTimeSources();
   Serial.print("Initializing SD card...");
   pinMode(LED_BUILTIN, OUTPUT);
-  //pinMode(SD_chipSelect, OUTPUT);
+  pinMode(SD_chipSelect, OUTPUT);
   // see if the card is present and can be initialized:
   if (!SD.begin(SD_chipSelect)) {
     Serial.println("Card failed, or not present, fatal.");
@@ -225,11 +277,15 @@ void setup()
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2, ntpServer3);
   setupISR();
   sensors.begin();
-  dht.begin();
+  //dht.begin();
+  dht.setup(DHTPIN, DHTesp::DHT22);
+
   // Make the sensors kick off a conversion cycle.
   sensors.requestTemperatures();
   oldTime = millis();
 }
+
+#ifdef WANT_WIFI
 void connectToWiFi(const char * ssid, const char * pwd)
 {
   int ledState = 0;
@@ -242,7 +298,7 @@ void connectToWiFi(const char * ssid, const char * pwd)
   while (WiFi.status() != WL_CONNECTED)
   {
     // Blink LED while we're connecting:
-     digitalWrite(LED_BUILTIN, ledState);
+    digitalWrite(LED_BUILTIN, ledState);
     ledState = (ledState + 1) % 2; // Flip ledState
     delay(200);
     Serial.print(".");
@@ -260,6 +316,7 @@ void connectToWiFi(const char * ssid, const char * pwd)
   Serial.println(WiFi.localIP());
 }
 
+#endif
 String DeviceAddresstoString(String& address, DeviceAddress deviceAddress)
 {
   address = "";
@@ -291,6 +348,8 @@ String getSerial() {
   cMac.toUpperCase();
   return cMac;
 }
+unsigned long led_blink_hr;
+unsigned long led_blink_hall;
 
 void loop()
 {
@@ -302,68 +361,120 @@ void loop()
 
     RFIDnumberOfInterrupts++;
   }
+  while (HRinterruptCounter > 0) {
+
+    portENTER_CRITICAL(&mux);
+    HRinterruptCounter--;
+    portEXIT_CRITICAL(&mux);
+    led_blink_hr = millis() + 300;
+    HRnumberOfInterrupts++;
+    //Serial.print("An interrupt has occurred. Total: ");
+    //Serial.println(numberOfInterrupts);
+  }
+  while (HALLinterruptCounter > 0) {
+
+    portENTER_CRITICAL(&mux);
+    HALLinterruptCounter--;
+    portEXIT_CRITICAL(&mux);
+    led_blink_hall = millis() + 100;
+
+    HALLnumberOfInterrupts++;
+    //Serial.print("An interrupt has occurred. Total: ");
+    //Serial.println(numberOfInterrupts);
+  }
+  if (led_blink_hr != 0 || led_blink_hall != 0)
+  {
+    if (led_blink_hr > millis() && led_blink_hall > millis())
+    {
+      digitalWrite(LED_BUILTIN, 0);
+      led_blink_hr = 0;
+      led_blink_hall = 0;
+    }
+    else
+    {
+      digitalWrite(LED_BUILTIN, 1);
+    }
+  }
 
   if ((millis() - oldTime) > 1000)   // Only process counters once per second
   {
+    char c = GPS.read();
+    if (GPS.newNMEAreceived()) {
+      // a tricky thing here is if we print the NMEA sentence, or data
+      // we end up not listening and catching other sentences!
+      // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
+      Serial.println(GPS.lastNMEA()); // this also sets the newNMEAreceived() flag to false
+      if (!GPS.parse(GPS.lastNMEA())) // this also sets the newNMEAreceived() flag to false
+        return; // we can fail to parse a sentence in which case we should just wait for another
+    }
+
+#ifdef WANT_WIFI
     WiFiClient client;
+#endif
     unsigned long resume_time = millis();
     sensors.requestTemperatures();
+
     StaticJsonDocument<800> doc;
     //JsonObject& root = doc.createObject();
     JsonObject root = doc.to<JsonObject>();
+#ifdef WANT_WIFI
     if (WiFi.status() != WL_CONNECTED)
     {
       // Connect to the WiFi network (see function below loop)
       connectToWiFi(networkName, networkPswd);
     }
-
-    hum = dht.readHumidity();
-    temp = dht.readTemperature();
-    hic = dht.computeHeatIndex(dht.readTemperature(true), hum);
+#endif
+    //hum = dht.readHumidity();
+    //temp = dht.readTemperature();
+    //hic = dht.computeHeatIndex(dht.readTemperature(true), hum);
     struct tm timeinfo;
-    if(getLocalTime(&timeinfo))
+    if (getLocalTime(&timeinfo))
     {
-      root["time"] = (String)timeinfo.tm_mday+"/"+timeinfo.tm_mon+"/"+timeinfo.tm_year+" "+timeinfo.tm_hour+":"+timeinfo.tm_min+":"+timeinfo.tm_sec;
+      root["time"] = (String)timeinfo.tm_mday + "/" + timeinfo.tm_mon + "/" + timeinfo.tm_year + " " + timeinfo.tm_hour + ":" + timeinfo.tm_min + ":" + timeinfo.tm_sec;
     }
-    root["vehicle"] = vehicle;
+    if (vehicle != NULL)
+      root["vehicle"] = vehicle;
     root["chipid"] = getSerial();
     root["now"] = millis();
+#ifdef WANT_WIFI
     root["LocalIP"] = WiFi.localIP().toString();
     root["RSSI"] = WiFi.RSSI();
     root["RSSIUnit"] = "dBm";
-    // DH22
-    if (!isnan(hum) && !isnan(temp)) {
-      root["DH22Temp"] = temp;
-      root["DH22Hum"] = hum;
-      root["DH22HIndex"] = hic;
+#endif
+    root["GPSDate"] =  String(GPS.day) + "/" + String(GPS.month) + "/" + String(GPS.year);
+    root["GPSTime"] = String(GPS.hour) + ":" + String(GPS.minute) + ":" + String(GPS.seconds) + "." + String(GPS.milliseconds);
+    root["GPSFix"] = GPS.fix;
+    root["GPSFixQ"] = GPS.fixquality;
+    if (GPS.fix) {
+      root["GPSLat"] = String(GPS.latitude) + ":" + String(GPS.lat);
+      root["GPSLon"] = String(GPS.longitude) + ":" + String(GPS.lon);
+      root["GPSSpd"] = GPS.speed;
+      root["GPSAngle"] = GPS.angle;
+      root["GPSAlt"] = GPS.altitude;
+      root["GPSSats"] = GPS.satellites;
     }
-    while (HRinterruptCounter > 0) {
-
-      portENTER_CRITICAL(&mux);
-      HRinterruptCounter--;
-      portEXIT_CRITICAL(&mux);
-
-      HRnumberOfInterrupts++;
-      //Serial.print("An interrupt has occurred. Total: ");
-      //Serial.println(numberOfInterrupts);
+    TempAndHumidity newValues = dht.getTempAndHumidity();
+    // Check if any reads failed and exit early (to try again).
+    if (dht.getStatus() != 0) {
+      Serial.println("DHT22 error status: " + String(dht.getStatusString()));
+    }
+    else
+    {
+      root["DH22Temp"] = newValues.temperature;
+      root["DH22Hum"] = newValues.humidity;
+      root["DH22DewPoint"] = dht.computeDewPoint(newValues.temperature, newValues.humidity);
+      root["DH22HIndex"] = dht.computeHeatIndex(newValues.temperature, newValues.humidity);
+      // dht.getComfortRatio(cf, newValues.temperature, newValues.humidity);
+      root["DH22ComfortRatio"] = dht.getComfortRatio(cf, newValues.temperature, newValues.humidity);
+      root["DH22ComfortFactor"] = cf;
     }
     root["HeartRate"] = HRnumberOfInterrupts;
     root["HeartTime"] = millis() - oldTime;
-    HRnumberOfInterrupts=0;
-    
-    while (HALLinterruptCounter > 0) {
+    HRnumberOfInterrupts = 0;
 
-      portENTER_CRITICAL(&mux);
-      HALLinterruptCounter--;
-      portEXIT_CRITICAL(&mux);
-
-      HALLnumberOfInterrupts++;
-      //Serial.print("An interrupt has occurred. Total: ");
-      //Serial.println(numberOfInterrupts);
-    }
     root["RevsRate"] = HALLnumberOfInterrupts;
     root["RevsTime"] = millis() - oldTime;
-    HALLnumberOfInterrupts=0;
+    HALLnumberOfInterrupts = 0;
     //    dataString+=HRnumberOfInterrupts;
 
     // Array of DS Temperature sensors, if any.
@@ -384,6 +495,22 @@ void loop()
     HALLnumberOfInterrupts = 0;
     String out;
     serializeJsonPretty(root, out);
+    // open the file. note that only one file can be open at a time,
+    // so you have to close this one before opening another.
+    File dataFile = SD.open("datalog.txt", FILE_WRITE);
+
+    // if the file is available, write to it:
+    if (dataFile) {
+      dataFile.println(out);
+      dataFile.close();
+      // print to the serial port too:
+      Serial.println(out);
+    }
+    // if the file isn't open, pop up an error:
+    else {
+      Serial.println("error opening datalog.txt");
+    }
+    oldTime = resume_time;
     //root.prettyPrintTo(out);
     // POST Section
     String postRequest =
@@ -398,6 +525,8 @@ void loop()
 
     // This will send the request to the server
     Serial.print(postRequest);
+#ifdef WANT_WIFI
+
     if (!client.connect(hostDomain, hostPort))
     {
       Serial.println("connection failed");
@@ -427,22 +556,7 @@ void loop()
     Serial.println();
     Serial.println("closing connection");
     client.stop();
-    // open the file. note that only one file can be open at a time,
-    // so you have to close this one before opening another.
-    File dataFile = SD.open("datalog.txt", FILE_WRITE);
-
-    // if the file is available, write to it:
-    if (dataFile) {
-      dataFile.println(out);
-      dataFile.close();
-      // print to the serial port too:
-      Serial.println(out);
-    }
-    // if the file isn't open, pop up an error:
-    else {
-      Serial.println("error opening datalog.txt");
-    }
-    oldTime = resume_time;
+#endif
   }
 }
 void printLine()
