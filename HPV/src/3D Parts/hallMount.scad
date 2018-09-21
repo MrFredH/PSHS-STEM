@@ -1,7 +1,7 @@
 // Setup detail level on curved surfaces
 $fn=40;
 // Define the dimensions of the intended sensor.
-hallx=15.6;
+hallx=16;
 hally=23.3;
 hallz=8;
 // Define width and height of holes for zip ties.
