@@ -33,6 +33,9 @@
    Authors:
    Initials Full name             Comment
    FH       Mr Fred Houweling
+   SB       Shantay B
+   AE       Anuksha E
+   
    [add your name above here, no surnames for under 18's]
 
              /====================\
@@ -90,7 +93,7 @@
 //#include <sd_diskio.h>
 #include <OneWire.h>
 
-#include <LiquidCrystal_I2C.h>
+//#include <LiquidCrystal_I2C.h>
 #include <DallasTemperature.h>
 
 #include <Adafruit_GPS.h>
